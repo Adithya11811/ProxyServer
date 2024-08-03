@@ -17,7 +17,8 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include "proxy_parse.h"
-#include "cache.h"
+// #include "cache.h"
+#include "hashCache.h"
 #include "http.h"
 #include "utils.h"
 

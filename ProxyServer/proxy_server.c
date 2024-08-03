@@ -92,6 +92,13 @@ void *thread_fn(void *socketNew)
                     sendErrorMessage(socket, 500);
                 }
             }
+            else if(!strcmp(request->method, "POST"))
+            {
+                printf("%s\n", request->host);
+                printf("%s\n", request->path);
+                printf("%s\n", request->method);
+                
+            }
             else
             {
                 printf("This code doesn't support any method other than GET\n");
