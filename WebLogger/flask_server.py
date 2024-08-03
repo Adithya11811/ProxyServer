@@ -13,8 +13,8 @@ def log():
         log_entry = parse_log(raw_log)
         if log_entry['header'] == 'Added':
             logs.append(log_entry)
-        # elif log_entry['header'] == 'Removed':
-        #     logs[:] = [log for log in logs if log['url'] != log_entry['url']]
+        elif log_entry['header'] == 'Removed':
+            logs[:] = [log for log in logs if log['url'] != log_entry['url']]
         socketio.emit('update_log', log_entry)
     return 'Log received', 200
 
