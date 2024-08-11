@@ -111,6 +111,9 @@ cache_element *find(char *url)
     cache_element *site = NULL;
 
     char *url_path = extract_url_path(url);
+    // printf("\n --- --- --- \n");
+    // printf("URL PATH: %s\n", url_path);
+    // printf("\n --- --- --- \n");
     if (!url_path)
     {
         printf("Failed to extract URL path\n");
@@ -185,8 +188,12 @@ void remove_cache_element()
         fprintf(stderr, "Error releasing cache lock: %d\n", temp_lock_val);
     }
 }
+
 int add_cache_element(char *data, int size, char *url)
 {
+    // printf("\n --- --- --- \n");
+    // printf("URL PATH: %s\n", url);
+    // printf("\n --- --- --- \n");
     printf("ADD CACHE ELEMENT\n");
 
     if (pthread_mutex_lock(&lock) != 0)
@@ -228,9 +235,9 @@ int add_cache_element(char *data, int size, char *url)
     }
 
     memcpy(element->data, data, size);
-    element->data[size] = '\0'; 
-
-    element->url = strdup(url);
+    element->data[size] = '\0';
+    char *url_path = extract_url_path(url);
+    element->url = strdup(url_path);
     if (element->url == NULL)
     {
         perror("Memory allocation for cache URL failed");
@@ -251,6 +258,6 @@ int add_cache_element(char *data, int size, char *url)
         fprintf(stderr, "Error releasing cache lock\n");
     }
 
-    printf("END OF ADD CACHE1");
+    printf("END OF ADD CACHE\n");
     return 1;
 }
