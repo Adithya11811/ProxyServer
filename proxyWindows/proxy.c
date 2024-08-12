@@ -113,6 +113,12 @@ void writeToClient(int Clientfd, int Serverfd, char *url)
 
     while ((iRecv = recv(Serverfd, buf, INITIAL_BUF_SIZE, 0)) > 0)
     {
+        // Check if data received is 0, which means the connection is closed
+        if (iRecv == 0)
+        {
+            break;
+        }
+
         writeToSocket(buf, Clientfd, iRecv);
 
         if (total_response_size + iRecv > current_buf_size)
@@ -144,7 +150,6 @@ void writeToClient(int Clientfd, int Serverfd, char *url)
 void *dataFromClient(void *sockid)
 {
     printf("DATA FROM CLIENT\n");
-
     const int INITIAL_BUF_SIZE = 5000;
     int MAX_BUFFER_SIZE = INITIAL_BUF_SIZE;
     char buf[INITIAL_BUF_SIZE];
@@ -193,16 +198,25 @@ void *dataFromClient(void *sockid)
         strcat(request_message, buf);
     }
 
+    if (strlen(request_message)==0)
+        {   //Legacy code [12-08-2024][10:47 PM]
+            //fprintf(stderr, "Error in memory allocation! An error occurred fuck uu.\n");
+            return 0;
+        }
+
+
     struct ParsedRequest *req = ParsedRequest_create();
 
- printf("%s",req->method);
+   
     if (ParsedRequest_parse(req, request_message, strlen(request_message)) < 0)
     {
-        printf("%s",req->method);
+        printf("Request message: %ld\n",strlen(request_message));
+        printf("method: %s\n",req->method);
+        printf("Buffer: %s\n",req->buf);
         fprintf(stderr, "Error in request message. Only HTTP GET with headers is allowed!\n");
         exit(0);
     }
-
+    printf("%s",req->method);
     if (req->port == NULL)
         req->port = strdup("80");
 
