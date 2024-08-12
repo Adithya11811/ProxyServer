@@ -195,10 +195,8 @@ void *dataFromClient(void *sockid)
 
     struct ParsedRequest *req = ParsedRequest_create();
 
- printf("%s",req->method);
     if (ParsedRequest_parse(req, request_message, strlen(request_message)) < 0)
     {
-        printf("%s",req->method);
         fprintf(stderr, "Error in request message. Only HTTP GET with headers is allowed!\n");
         exit(0);
     }
