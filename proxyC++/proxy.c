@@ -193,6 +193,13 @@ void *dataFromClient(void *sockid)
         strcat(request_message, buf);
     }
 
+    if(strlen(request_message) == 0)
+    {
+        close(newsockfd);
+        free(request_message);
+        return NULL;
+    }
+
     struct ParsedRequest *req = ParsedRequest_create();
 
     if (ParsedRequest_parse(req, request_message, strlen(request_message)) < 0)
