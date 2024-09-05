@@ -1,6 +1,8 @@
+# flask_server.py
 from flask import Flask, request, render_template_string
 from flask_socketio import SocketIO, emit
-
+ 
+import datetime 
 app = Flask(__name__)
 socketio = SocketIO(app)
 
@@ -27,6 +29,12 @@ def parse_log(raw_log):
         'data': '',
         'length': '',
         'lru_time_track': '',
+        'server': '',
+        'date': '',
+        'content_type': '',
+        'content_length': '',
+        'location': '',
+        'x_cache': ''
     }
     for line in lines[1:]:
         if line.startswith('URL:'):
@@ -36,7 +44,25 @@ def parse_log(raw_log):
         elif line.startswith('Length:'):
             log_entry['length'] = line.split(': ', 1)[1]
         elif line.startswith('LRU Time Track:'):
-            log_entry['lru_time_track'] = line.split(': ', 1)[1]
+            time_str = line.split(': ', 1)[1]
+            try:
+                # Convert string timestamp to float
+                time_float = float(time_str)
+                dt_object = datetime.datetime.fromtimestamp(time_float)
+                formatted_time = dt_object.strftime("%Y-%m-%d %H:%M:%S")
+                log_entry['lru_time_track'] = formatted_time
+            except ValueError:
+                log_entry['lru_time_track'] = 'Error!'
+        elif line.startswith('Server:'):
+            log_entry['server'] = line.split(': ', 1)[1]
+        elif line.startswith('Date:'):
+            log_entry['date'] = line.split(': ', 1)[1]
+        elif line.startswith('Content-Type:'):
+            log_entry['content_type'] = line.split(': ', 1)[1]
+        elif line.startswith('Content-Length:'):
+            log_entry['content_length'] = line.split(': ', 1)[1]
+        elif line.startswith('Location:'):
+            log_entry['location'] = line.split(': ', 1)[1]
     return log_entry
 
 @app.route('/')
@@ -74,12 +100,24 @@ def index():
                 var dataCell = row.insertCell(2);
                 var lengthCell = row.insertCell(3);
                 var lruTimeTrackCell = row.insertCell(4);
+                var serverCell = row.insertCell(5);
+                var dateCell = row.insertCell(6);
+                var contentTypeCell = row.insertCell(7);
+                var contentLengthCell = row.insertCell(8);
+                var locationCell = row.insertCell(9);
+                
 
                 headerCell.innerHTML = log.header;
                 urlCell.innerHTML = log.url;
                 dataCell.innerHTML = log.data;
                 lengthCell.innerHTML = log.length;
                 lruTimeTrackCell.innerHTML = log.lru_time_track;
+                serverCell.innerHTML = log.server;
+                dateCell.innerHTML = log.date;
+                contentTypeCell.innerHTML = log.content_type;
+                contentLengthCell.innerHTML = log.content_length;
+                locationCell.innerHTML = log.location;
+                
             });
         });
     </script>
@@ -93,6 +131,12 @@ def index():
             <th>Data</th>
             <th>Length</th>
             <th>LRU Time Track</th>
+            <th>Server</th>
+            <th>Date</th>
+            <th>Content-Type</th>
+            <th>Content-Length</th>
+            <th>Location</th>
+
         </tr>
         {% for log in logs %}
         <tr>
@@ -101,6 +145,12 @@ def index():
             <td>{{ log.data }}</td>
             <td>{{ log.length }}</td>
             <td>{{ log.lru_time_track }}</td>
+            <td>{{ log.server }}</td>
+            <td>{{ log.date }}</td>
+            <td>{{ log.content_type }}</td>
+            <td>{{ log.content_length }}</td>
+            <td>{{ log.location }}</td>
+          
         </tr>
         {% endfor %}
     </table>

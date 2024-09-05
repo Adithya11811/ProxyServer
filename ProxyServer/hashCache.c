@@ -11,7 +11,7 @@
 
 cache_element *cache = NULL;
 int cache_size = 0;
-pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER; // Initialize mutex
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER; 
 
 char *extract_url_path(char *url)
 {
@@ -77,13 +77,11 @@ void log_to_flask_server(const char *log)
              "log=%s",
              server_ip, server_port, strlen(log) + 4, log);
 
-    // Send the request
     if (send(sock, request, strlen(request), 0) < 0)
     {
         perror("Send failed");
     }
 
-    // Close the socket
     close(sock);
 }
 
@@ -106,10 +104,11 @@ void log_cache_element(const char *header, cache_element *element)
     log_to_flask_server(log);
 }
 
-cache_element *find(char *url_path)
+cache_element *find(char *url)
 {
     cache_element *site = NULL;
 
+    char *url_path = extract_url_path(url);
     if (!url_path)
     {
         printf("Failed to extract URL path\n");
@@ -233,7 +232,7 @@ int add_cache_element(char *data, int size, char *url)
     memcpy(element->data, data, size);
     element->data[size] = '\0';
     char *url_path = extract_url_path(url);
-    element->url = url_path;
+    element->url = strdup(url_path);
     if (element->url == NULL)
     {
         perror("Memory allocation for cache URL failed");
