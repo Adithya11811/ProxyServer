@@ -11,9 +11,8 @@
 
 cache_element *cache = NULL;
 int cache_size = 0;
-pthread_mutex_t lock;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER; // Initialize mutex
 
-// Function to extract the essential part of the URL for comparison
 char *extract_url_path(char *url)
 {
     char *start = strstr(url, "GET ");
@@ -22,6 +21,11 @@ char *extract_url_path(char *url)
     {
         size_t length = end - start - 4;
         char *path = (char *)malloc(length + 1);
+        if (path == NULL)
+        {
+            perror("Memory allocation for URL path failed");
+            return NULL;
+        }
         strncpy(path, start + 4, length);
         path[length] = '\0';
         return path;
@@ -29,14 +33,16 @@ char *extract_url_path(char *url)
     return NULL;
 }
 
-void log_to_flask_server(const char* log) {
+void log_to_flask_server(const char *log)
+{
     int sock;
     struct sockaddr_in server_addr;
     char server_ip[] = "127.0.0.1"; // Flask server IP
     int server_port = 5000;         // Flask server port
 
     // Create socket
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
         perror("Socket creation error");
         return;
     }
@@ -45,14 +51,16 @@ void log_to_flask_server(const char* log) {
     server_addr.sin_port = htons(server_port);
 
     // Convert IPv4 and IPv6 addresses from text to binary form
-    if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
+    if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0)
+    {
         perror("Invalid address/ Address not supported");
         close(sock);
         return;
     }
 
     // Connect to Flask server
-    if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+    if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
+    {
         perror("Connection failed");
         close(sock);
         return;
@@ -70,7 +78,10 @@ void log_to_flask_server(const char* log) {
              server_ip, server_port, strlen(log) + 4, log);
 
     // Send the request
-    send(sock, request, strlen(request), 0);
+    if (send(sock, request, strlen(request), 0) < 0)
+    {
+        perror("Send failed");
+    }
 
     // Close the socket
     close(sock);
@@ -78,6 +89,9 @@ void log_to_flask_server(const char* log) {
 
 void log_cache_element(const char *header, cache_element *element)
 {
+    if (element == NULL)
+        return;
+
     char log[2048];
     snprintf(log, sizeof(log),
              "%s\n"
@@ -92,12 +106,10 @@ void log_cache_element(const char *header, cache_element *element)
     log_to_flask_server(log);
 }
 
-cache_element *find(char *url)
+cache_element *find(char *url_path)
 {
-    // Checks for URL in the cache; if found, returns a pointer to the respective cache element, else returns NULL
     cache_element *site = NULL;
 
-    char *url_path = extract_url_path(url);
     if (!url_path)
     {
         printf("Failed to extract URL path\n");
@@ -105,13 +117,16 @@ cache_element *find(char *url)
     }
 
     int temp_lock_val = pthread_mutex_lock(&lock);
-    printf("Find Cache Lock Acquired %d\n", temp_lock_val);
+    if (temp_lock_val != 0)
+    {
+        fprintf(stderr, "Error acquiring cache lock: %d\n", temp_lock_val);
+    }
+
     HASH_FIND_STR(cache, url_path, site);
     if (site != NULL)
     {
         printf("LRU Time Track Before: %ld\n", site->lru_time_track);
         printf("\nURL found\n");
-        // Updating the time_track
         site->lru_time_track = time(NULL);
         printf("LRU Time Track After: %ld\n", site->lru_time_track);
     }
@@ -119,24 +134,33 @@ cache_element *find(char *url)
     {
         printf("\nURL not found\n");
     }
+
     free(url_path);
 
     temp_lock_val = pthread_mutex_unlock(&lock);
-    printf("Find Cache Lock Unlocked %d\n", temp_lock_val);
+    if (temp_lock_val != 0)
+    {
+        fprintf(stderr, "Error releasing cache lock: %d\n", temp_lock_val);
+    }
     return site;
 }
 
 void remove_cache_element()
 {
-    // If cache is not empty, searches for the node with the least lru_time_track and deletes it
+    printf("REMOVE CACHE ELEMENT\n");
+
     cache_element *site = NULL;
     cache_element *oldest = NULL;
 
     int temp_lock_val = pthread_mutex_lock(&lock);
-    printf("Remove Cache Lock Acquired %d\n", temp_lock_val);
+    if (temp_lock_val != 0)
+    {
+        fprintf(stderr, "Error acquiring cache lock: %d\n", temp_lock_val);
+    }
+
     if (cache != NULL)
     {
-        for (site = cache; site != NULL; site = site->hh.next)
+        for (site = cache; site != NULL; site = (cache_element *)site->hh.next)
         {
             if (oldest == NULL || site->lru_time_track < oldest->lru_time_track)
             {
@@ -146,48 +170,90 @@ void remove_cache_element()
         if (oldest != NULL)
         {
             HASH_DEL(cache, oldest);
-            log_cache_element("Removed", oldest); // Log the removed cache element
-            cache_size = cache_size - (oldest->len) - sizeof(cache_element) - strlen(oldest->url) - 1; // updating the cache size
+            log_cache_element("Removed", oldest);                                          // Log the removed cache element
+            cache_size -= (oldest->len) + sizeof(cache_element) + strlen(oldest->url) + 1; // Update cache size
             free(oldest->data);
             free(oldest->url); // Free the removed element
             free(oldest);
         }
     }
+
     temp_lock_val = pthread_mutex_unlock(&lock);
-    printf("Remove Cache Lock Unlocked %d\n", temp_lock_val);
+    if (temp_lock_val != 0)
+    {
+        fprintf(stderr, "Error releasing cache lock: %d\n", temp_lock_val);
+    }
 }
 
 int add_cache_element(char *data, int size, char *url)
 {
-    int temp_lock_val = pthread_mutex_lock(&lock);
-    printf("Add Cache Lock Acquired %d\n", temp_lock_val);
-    int element_size = size + 1 + strlen(url) + sizeof(cache_element); // Size of the new element which will be added to the cache
+    // printf("\n --- --- --- \n");
+    // printf("URL PATH: %s\n", url);
+    // printf("\n --- --- --- \n");
+    printf("ADD CACHE ELEMENT\n");
+
+    if (pthread_mutex_lock(&lock) != 0)
+    {
+        fprintf(stderr, "Error acquiring cache lock\n");
+        return 0;
+    }
+
+    int element_size = size + 1 + strlen(url) + sizeof(cache_element);
     printf("Element size: %d, MAX_ELEMENT_SIZE: %d\n", element_size, MAX_ELEMENT_SIZE);
+
     if (element_size > MAX_ELEMENT_SIZE)
     {
         printf("Element size is greater than MAX_ELEMENT_SIZE. Not caching.\n");
-        temp_lock_val = pthread_mutex_unlock(&lock);
-        printf("Add Cache Lock Unlocked %d\n", temp_lock_val);
+        pthread_mutex_unlock(&lock);
         return 0;
     }
-    else
+
+    while (cache_size + element_size > MAX_SIZE)
     {
-        while (cache_size + element_size > MAX_SIZE)
-        {
-            remove_cache_element();
-        }
-        cache_element *element = (cache_element *)malloc(sizeof(cache_element)); // Allocating memory for the new cache element
-        element->data = (char *)malloc(size + 1);                                // Allocating memory for the response to be stored in the cache element
-        strcpy(element->data, data);
-        element->url = strdup(url);                                              // Allocating memory for the request to be stored in the cache element (as a key)
-        element->lru_time_track = time(NULL);                                    // Updating the time_track
-        HASH_ADD_STR(cache, url, element);
-        element->len = size;
-        cache_size += element_size;
-        log_cache_element("Added", element); // Log the added cache element
-        temp_lock_val = pthread_mutex_unlock(&lock);
-        printf("Add Cache Lock Unlocked %d\n", temp_lock_val);
-        return 1;
+        remove_cache_element();
     }
-    return 0;
+
+    cache_element *element = (cache_element *)malloc(sizeof(cache_element));
+    if (element == NULL)
+    {
+        perror("Memory allocation for cache element failed");
+        pthread_mutex_unlock(&lock);
+        return 0;
+    }
+
+    element->data = (char *)malloc(size + 1);
+    if (element->data == NULL)
+    {
+        perror("Memory allocation for cache data failed");
+        free(element);
+        pthread_mutex_unlock(&lock);
+        return 0;
+    }
+
+    memcpy(element->data, data, size);
+    element->data[size] = '\0';
+    char *url_path = extract_url_path(url);
+    element->url = strdup(url_path);
+    if (element->url == NULL)
+    {
+        perror("Memory allocation for cache URL failed");
+        free(element->data);
+        free(element);
+        pthread_mutex_unlock(&lock);
+        return 0;
+    }
+
+    element->lru_time_track = time(NULL);
+    HASH_ADD_STR(cache, url, element);
+    element->len = size;
+    cache_size += element_size;
+    log_cache_element("Added", element); // Log the added cache element
+
+    if (pthread_mutex_unlock(&lock) != 0)
+    {
+        fprintf(stderr, "Error releasing cache lock\n");
+    }
+
+    printf("END OF ADD CACHE\n");
+    return 1;
 }

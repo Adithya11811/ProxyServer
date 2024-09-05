@@ -144,8 +144,9 @@ void writeToClient(int Clientfd, int Serverfd, char *url)
 }
 
 const char *blocked_ips[] = {
-    "2606:2800:21f:cb07:6820:80da:af6b:8b2c", // example.com
-    NULL // End of list marker
+    "2606:2800:21f:cb07:6820:80da:af6b:8b2c",
+    "93.184.215.14", // example.com
+    NULL            // End of list marker
 };
 
 int is_ip_blocked(const char *ip) {
