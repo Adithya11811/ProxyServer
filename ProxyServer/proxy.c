@@ -14,7 +14,9 @@
 #include "hashCache.h"
 #include "proxy_parse.h"
 
-#define REDIRECT_IP "/https://www.google.com/"
+#define REDIRECT_IP "/https://guthib.com/"
+#define GOOGLE_REDIRECT "HTTP/1.1 302 Found\r\nLocation: https://guthib.com/\r\n\r\n"
+
 
 char *convert_Request_to_string(struct ParsedRequest *req)
 {
@@ -144,9 +146,8 @@ void writeToClient(int Clientfd, int Serverfd, char *url)
 }
 
 const char *blocked_ips[] = {
-    "2606:2800:21f:cb07:6820:80da:af6b:8b2c",
-    "93.184.215.14", // example.com
-    NULL            // End of list marker
+    "64:ff9b::14cf:4952", // github.com
+    NULL // End of list marker
 };
 
 int is_ip_blocked(const char *ip) {
@@ -247,7 +248,28 @@ void *dataFromClient(void *sockid)
     char buf[INITIAL_BUF_SIZE];
     int newsockfd = *((int *)sockid);
     free(sockid);
-    
+
+    // extra add madidhu
+    // struct sockaddr_in addr;
+    // socklen_t addr_len = sizeof(addr);
+    // char client_ip[INET_ADDRSTRLEN];
+
+    // if (getpeername(newsockfd, (struct sockaddr *)&addr, &addr_len) == -1) {
+    //     perror("getpeername failed");
+    //     close(newsockfd);
+    //     pthread_exit(NULL);
+    // }
+
+    // inet_ntop(AF_INET, &addr.sin_addr, client_ip, sizeof(client_ip));
+
+    // if(is_ip_blocked(client_ip)) {
+    //     printf("Blocked IP: %s\n", client_ip);
+    // }else{
+    //     printf("Accepted IP: %s\n", client_ip);
+    // }
+
+    //till here extra
+
     char *request_message = (char *)malloc(MAX_BUFFER_SIZE);
 
     if (request_message == NULL)
@@ -312,13 +334,23 @@ void *dataFromClient(void *sockid)
     if (req->port == NULL)
         req->port = strdup("80");
 
-    //extra
+
     char *url_path = extract_url_path(request_message);
     char *temp = perform_dns_lookup(url_path);
+
+    printf("URL: %s\n", url_path);
+    printf("TEMP: %s\n", temp);
+    int isBlocked = 0;
+    if(strcmp(url_path, temp) == 0){
+        printf("URL and TEMP are same\n");
+    }else{
+        isBlocked = 1;
+        printf("URL and TEMP are different\n");
+    }
+
     //till here extra
 
     cache_element *cached_response = find(temp);
-    free(url_path);
 
     if (cached_response != NULL)
     {
@@ -328,9 +360,17 @@ void *dataFromClient(void *sockid)
     {
         char *browser_req = convert_Request_to_string(req);
         int iServerfd = createServerSocket(req->host, req->port);
+        if(isBlocked){
+            printf("Blocked domain: %s\n", temp);
+            writeToSocket(GOOGLE_REDIRECT, newsockfd, strlen(GOOGLE_REDIRECT));
+            // writeToClient(newsockfd, iServerfd, request_message);
+            printf("Redirected to Google.com\n");
+        }else{
+            writeToSocket(browser_req, iServerfd, strlen(browser_req));
+            writeToClient(newsockfd, iServerfd, request_message);
+        }
 
-        writeToSocket(browser_req, iServerfd, strlen(browser_req));
-        writeToClient(newsockfd, iServerfd, request_message);
+
 
         ParsedRequest_destroy(req);
         close(iServerfd);
