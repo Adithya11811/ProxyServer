@@ -1,28 +1,32 @@
-CC=gcc
-CFLAGS= -g -Wall
+CC = g++
+CFLAGS = -g -Wall -Werror
 
+# List of object files
+OBJECTS = proxy_parse.o proxy.o hashCache.o
+
+# Default target
 all: proxy
 
-proxy: proxy_server.o hashCache.o http.o utils.o proxy_parse.o
-	$(CC) $(CFLAGS) -o proxy proxy_server.o hashCache.o http.o utils.o proxy_parse.o -lpthread
+# Build proxy executable
+proxy: $(OBJECTS)
+	$(CC) $(CFLAGS) -o proxy $(OBJECTS)
 
-proxy_server.o: proxy_server.c proxy_server.h
-	$(CC) $(CFLAGS) -c proxy_server.c
+# Compile proxy_parse.o
+proxy_parse.o: proxy_parse.c proxy_parse.h uthash.h
+	$(CC) $(CFLAGS) -o proxy_parse.o -c proxy_parse.c
 
-hashCache.o: hashCache.c hashCache.h
-	$(CC) $(CFLAGS) -c hashCache.c
+# Compile proxy.o
+proxy.o: proxy.c proxy_parse.h uthash.h
+	$(CC) $(CFLAGS) -o proxy.o -c proxy.c
 
-http.o: http.c http.h
-	$(CC) $(CFLAGS) -c http.c
+# Compile hashCache.o
+hashCache.o: hashCache.c hashCache.h uthash.h
+	$(CC) $(CFLAGS) -o hashCache.o -c hashCache.c
 
-utils.o: utils.c utils.h
-	$(CC) $(CFLAGS) -c utils.c
-
-proxy_parse.o: proxy_parse.c proxy_parse.h
-	$(CC) $(CFLAGS) -c proxy_parse.c
-
+# Clean build artifacts
 clean:
 	rm -f proxy *.o
 
+# Create tarball
 tar:
-	tar -cvzf ass1.tgz proxy_server.c hashCache.c http.c utils.c README Makefile proxy_parse.c proxy_parse.h proxy_server.h hashCache.h http.h utils.h
+	tar -cvzf ass1.tgz proxy README Makefile proxy_parse.c proxy_parse.h hashCache.c hashCache.h uthash.h
