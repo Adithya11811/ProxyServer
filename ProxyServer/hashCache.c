@@ -233,7 +233,7 @@ int add_cache_element(char *data, int size, char *url)
     memcpy(element->data, data, size);
     element->data[size] = '\0';
     char *url_path = extract_url_path(url);
-    element->url = strdup(url_path);
+    element->url = url_path;
     if (element->url == NULL)
     {
         perror("Memory allocation for cache URL failed");
