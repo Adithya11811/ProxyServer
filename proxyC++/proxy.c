@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <errno.h>
+// #include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -13,6 +13,8 @@
 
 #include "hashCache.h"
 #include "proxy_parse.h"
+
+#define REDIRECT_IP "/https://www.google.com/"
 
 char *convert_Request_to_string(struct ParsedRequest *req)
 {
@@ -141,6 +143,100 @@ void writeToClient(int Clientfd, int Serverfd, char *url)
     free(server_response_data);
 }
 
+const char *blocked_ips[] = {
+    "2606:2800:21f:cb07:6820:80da:af6b:8b2c", // example.com
+    NULL // End of list marker
+};
+
+int is_ip_blocked(const char *ip) {
+    for (int i = 0; blocked_ips[i] != NULL; i++) {
+        if (strcmp(blocked_ips[i], ip) == 0) {
+            return 1; // IP is blocked
+        }
+    }
+    return 0; // IP is not blocked
+}
+
+void extract_hostname(const char *url, char *hostname) {
+    const char *start = strstr(url, "://");
+    if (start) {
+        start += 3; // Skip "://"
+    } else {
+        start = url; // No "://", start from the beginning
+    }
+
+    const char *end = strchr(start, '/'); // Find the first slash after the protocol
+    if (end) {
+        strncpy(hostname, start, end - start);
+        hostname[end - start] = '\0';
+    } else {
+        strcpy(hostname, start); // No path, the whole string is the hostname
+    }
+
+    // Remove any trailing port number
+    char *colon = strchr(hostname, ':');
+    if (colon) {
+        *colon = '\0';
+    }
+}
+
+char* perform_dns_lookup(const char *url) {
+    struct addrinfo hints, *res, *p;
+    int status;
+    char ipstr[INET6_ADDRSTRLEN];
+    const char *ipver;
+    char hostname[256];
+    char *result_ip = NULL;
+
+    // Extract hostname from the URL
+    extract_hostname(url, hostname);
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC; // Allow IPv4 or IPv6
+    hints.ai_socktype = SOCK_STREAM;
+
+    if ((status = getaddrinfo(hostname, NULL, &hints, &res)) != 0) {
+        fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status));
+        return NULL;
+    }
+
+    printf("IP addresses for %s:\n", hostname);
+
+    for (p = res; p != NULL; p = p->ai_next) {
+        void *addr;
+
+        // Get the pointer to the address itself
+        if (p->ai_family == AF_INET) { // IPv4
+            struct sockaddr_in *ipv4 = (struct sockaddr_in *)p->ai_addr;
+            addr = &(ipv4->sin_addr);
+            ipver = "IPv4";
+        } else { // IPv6
+            struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)p->ai_addr;
+            addr = &(ipv6->sin6_addr);
+            ipver = "IPv6";
+        }
+
+        // Convert the IP to a string
+        inet_ntop(p->ai_family, addr, ipstr, sizeof ipstr);
+        printf("  %s: %s\n", ipver, ipstr);
+
+        if (is_ip_blocked(ipstr)) {
+            printf("Blocked IP: %s, Redirecting to %s\n", ipstr, REDIRECT_IP);
+            result_ip = strdup(REDIRECT_IP);  // Allocate memory and copy the redirect IP
+            break;
+        } else {
+            printf("Accepted IP: %s\n", ipstr);
+            result_ip = strdup(url);
+            return  result_ip; // Allocate memory and copy the accepted IP
+            break;
+        }
+    }
+
+    freeaddrinfo(res); // Free the linked list
+    return result_ip; // Caller must free the returned string
+}
+
+
 void *dataFromClient(void *sockid)
 {
     printf("DATA FROM CLIENT\n");
@@ -150,7 +246,7 @@ void *dataFromClient(void *sockid)
     char buf[INITIAL_BUF_SIZE];
     int newsockfd = *((int *)sockid);
     free(sockid);
-
+    
     char *request_message = (char *)malloc(MAX_BUFFER_SIZE);
 
     if (request_message == NULL)
@@ -197,13 +293,17 @@ void *dataFromClient(void *sockid)
     {
         close(newsockfd);
         free(request_message);
-        return NULL;
+        return 0;
     }
 
     struct ParsedRequest *req = ParsedRequest_create();
 
     if (ParsedRequest_parse(req, request_message, strlen(request_message)) < 0)
     {
+        printf("Request_message: %s\n", request_message);
+        printf("req->method: %s\n", req->method);
+        printf("req->host: %s\n", req->host);
+        printf("req->buf: %s\n", req->buf);
         fprintf(stderr, "Error in request message. Only HTTP GET with headers is allowed!\n");
         exit(0);
     }
@@ -211,7 +311,13 @@ void *dataFromClient(void *sockid)
     if (req->port == NULL)
         req->port = strdup("80");
 
-    cache_element *cached_response = find(request_message);
+    //extra
+    char *url_path = extract_url_path(request_message);
+    char *temp = perform_dns_lookup(url_path);
+    //till here extra
+
+    cache_element *cached_response = find(temp);
+    free(url_path);
 
     if (cached_response != NULL)
     {

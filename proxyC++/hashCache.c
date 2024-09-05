@@ -106,14 +106,10 @@ void log_cache_element(const char *header, cache_element *element)
     log_to_flask_server(log);
 }
 
-cache_element *find(char *url)
+cache_element *find(char *url_path)
 {
     cache_element *site = NULL;
 
-    char *url_path = extract_url_path(url);
-    // printf("\n --- --- --- \n");
-    // printf("URL PATH: %s\n", url_path);
-    // printf("\n --- --- --- \n");
     if (!url_path)
     {
         printf("Failed to extract URL path\n");
