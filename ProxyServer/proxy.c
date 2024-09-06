@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+// #include <errno.h>
+#include <sys/select.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -61,7 +63,7 @@ int createServerSocket(const char *pcAddress, const char *pcPort)
     if (getaddrinfo(pcAddress, pcPort, &ahints, &paRes) != 0)
     {
         fprintf(stderr, "Error in server address format!\n");
-        exit(1);
+        // exit(1);
     }
 
     if ((iSockfd = socket(paRes->ai_family, paRes->ai_socktype, paRes->ai_protocol)) < 0)
@@ -74,7 +76,7 @@ int createServerSocket(const char *pcAddress, const char *pcPort)
         fprintf(stderr, "Error in connecting to server!\n");
         exit(1);
     }
-
+    printf("HELLLOOOOOOO\n");
     freeaddrinfo(paRes);
     return iSockfd;
 }
@@ -140,8 +142,10 @@ void writeToClient(int Clientfd, int Serverfd, char *url)
     }
 
     add_cache_element(server_response_data, total_response_size, url);
-
-    free(server_response_data);
+    if (strlen(server_response_data))
+    {
+        free(server_response_data);
+    }
 }
 
 int file_exists(const char *filename) {
@@ -208,30 +212,39 @@ int is_ip_blocked(const char *ip) {
     return 0; // IP is not blocked
 }
 
-void extract_hostname(const char *url, char *hostname) {
+void extract_hostname(const char *url, char *hostname)
+{
     const char *start = strstr(url, "://");
-    if (start) {
+    if (start)
+    {
         start += 3; // Skip "://"
-    } else {
+    }
+    else
+    {
         start = url; // No "://", start from the beginning
     }
 
     const char *end = strchr(start, '/'); // Find the first slash after the protocol
-    if (end) {
+    if (end)
+    {
         strncpy(hostname, start, end - start);
         hostname[end - start] = '\0';
-    } else {
+    }
+    else
+    {
         strcpy(hostname, start); // No path, the whole string is the hostname
     }
 
     // Remove any trailing port number
     char *colon = strchr(hostname, ':');
-    if (colon) {
+    if (colon)
+    {
         *colon = '\0';
     }
 }
 
-char* perform_dns_lookup(const char *url) {
+char *perform_dns_lookup(const char *url)
+{
     struct addrinfo hints, *res, *p;
     int status;
     char ipstr[INET6_ADDRSTRLEN];
@@ -246,22 +259,27 @@ char* perform_dns_lookup(const char *url) {
     hints.ai_family = AF_UNSPEC; // Allow IPv4 or IPv6
     hints.ai_socktype = SOCK_STREAM;
 
-    if ((status = getaddrinfo(hostname, NULL, &hints, &res)) != 0) {
+    if ((status = getaddrinfo(hostname, NULL, &hints, &res)) != 0)
+    {
         fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status));
         return NULL;
     }
 
     printf("IP addresses for %s:\n", hostname);
 
-    for (p = res; p != NULL; p = p->ai_next) {
+    for (p = res; p != NULL; p = p->ai_next)
+    {
         void *addr;
 
         // Get the pointer to the address itself
-        if (p->ai_family == AF_INET) { // IPv4
+        if (p->ai_family == AF_INET)
+        { // IPv4
             struct sockaddr_in *ipv4 = (struct sockaddr_in *)p->ai_addr;
             addr = &(ipv4->sin_addr);
             ipver = "IPv4";
-        } else { // IPv6
+        }
+        else
+        { // IPv6
             struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)p->ai_addr;
             addr = &(ipv6->sin6_addr);
             ipver = "IPv6";
@@ -271,23 +289,90 @@ char* perform_dns_lookup(const char *url) {
         inet_ntop(p->ai_family, addr, ipstr, sizeof ipstr);
         printf("  %s: %s\n", ipver, ipstr);
 
-        if (is_ip_blocked(ipstr)) {
+        if (is_ip_blocked(ipstr))
+        {
             printf("Blocked IP: %s, Redirecting to %s\n", ipstr, REDIRECT_IP);
-            result_ip = strdup(REDIRECT_IP);  // Allocate memory and copy the redirect IP
+            result_ip = strdup(REDIRECT_IP); // Allocate memory and copy the redirect IP
             break;
-        } else {
+        }
+        else
+        {
             printf("Accepted IP: %s\n", ipstr);
             result_ip = strdup(url);
-            return  result_ip; // Allocate memory and copy the accepted IP
+            return result_ip; // Allocate memory and copy the accepted IP
             break;
         }
     }
 
     freeaddrinfo(res); // Free the linked list
-    return result_ip; // Caller must free the returned string
+    return result_ip;  // Caller must free the returned string
 }
+void handleConnectRequest(int client_sock, struct ParsedRequest *req)
+{
+    printf("Handling CONNECT request\n");
+    printf("HOST: %s", req->host);
+    printf("PORT: %s\n", req->port);
+    // 1. Get the host and port from the req struct
+    const char *host = req->host;
+    const char *port = req->port ? req->port : "443"; // Default to port 443 for HTTPS if not provided
 
+    // 2. Establish a connection to the destination server
+    int server_sock = createServerSocket(host, port);
+    if (server_sock < 0)
+    {
+        fprintf(stderr, "Failed to connect to destination server for CONNECT request\n");
+        close(client_sock);
+        return;
+    }
 
+    // 3. Send 200 Connection Established response to the client
+    const char *connection_established = "HTTP/1.1 200 Connection Established\r\n\r\n";
+    writeToSocket(connection_established, client_sock, strlen(connection_established));
+
+    // 4. Relay data between client and server (using select for simultaneous I/O)
+    fd_set fds;
+    char buffer[4096];
+    int max_fd = (client_sock > server_sock) ? client_sock : server_sock;
+
+    while (1)
+    {
+        FD_ZERO(&fds);
+        FD_SET(client_sock, &fds);
+        FD_SET(server_sock, &fds);
+
+        if (select(max_fd + 1, &fds, NULL, NULL, NULL) < 0)
+        {
+            perror("select error");
+            break;
+        }
+
+        // Data from client to server
+        if (FD_ISSET(client_sock, &fds))
+        {
+            int bytes_received = recv(client_sock, buffer, sizeof(buffer), 0);
+            if (bytes_received <= 0)
+            {
+                break; // Client closed the connection
+            }
+            send(server_sock, buffer, bytes_received, 0);
+        }
+
+        // Data from server to client
+        if (FD_ISSET(server_sock, &fds))
+        {
+            int bytes_received = recv(server_sock, buffer, sizeof(buffer), 0);
+            if (bytes_received <= 0)
+            {
+                break; // Server closed the connection
+            }
+            send(client_sock, buffer, bytes_received, 0);
+        }
+    }
+
+    // Close both client and server sockets
+    close(server_sock);
+    close(client_sock);
+}
 void *dataFromClient(void *sockid)
 {
     printf("DATA FROM CLIENT\n");
@@ -298,36 +383,14 @@ void *dataFromClient(void *sockid)
     int newsockfd = *((int *)sockid);
     free(sockid);
 
-    // extra add madidhu
-    // struct sockaddr_in addr;
-    // socklen_t addr_len = sizeof(addr);
-    // char client_ip[INET_ADDRSTRLEN];
-
-    // if (getpeername(newsockfd, (struct sockaddr *)&addr, &addr_len) == -1) {
-    //     perror("getpeername failed");
-    //     close(newsockfd);
-    //     pthread_exit(NULL);
-    // }
-
-    // inet_ntop(AF_INET, &addr.sin_addr, client_ip, sizeof(client_ip));
-
-    // if(is_ip_blocked(client_ip)) {
-    //     printf("Blocked IP: %s\n", client_ip);
-    // }else{
-    //     printf("Accepted IP: %s\n", client_ip);
-    // }
-
-    //till here extra
-
     char *request_message = (char *)malloc(MAX_BUFFER_SIZE);
-
     if (request_message == NULL)
     {
         fprintf(stderr, "Error in memory allocation!\n");
         exit(1);
     }
 
-    request_message[0] = '\0';
+    request_message[0] = '\0'; // Initialize the buffer
     int total_received_bits = 0;
 
     while (strstr(request_message, "\r\n\r\n") == NULL)
@@ -340,28 +403,34 @@ void *dataFromClient(void *sockid)
         }
         else if (recvd == 0)
         {
-            break;
+            break; // Client closed the connection
         }
         else
         {
+            buf[recvd] = '\0'; // Null-terminate the received buffer
+
             total_received_bits += recvd;
-            buf[recvd] = '\0';
 
             if (total_received_bits > MAX_BUFFER_SIZE)
             {
                 MAX_BUFFER_SIZE *= 2;
-                request_message = (char *)realloc(request_message, MAX_BUFFER_SIZE);
-                if (request_message == NULL)
+                char *new_request_message = (char *)realloc(request_message, MAX_BUFFER_SIZE);
+                if (new_request_message == NULL)
                 {
                     fprintf(stderr, "Error in memory re-allocation!\n");
+                    free(request_message); // Don't lose the original buffer
                     exit(1);
                 }
+                request_message = new_request_message;
+                printf("%s", request_message);
             }
+
+            // Safely append received data
+            strncat(request_message, buf, recvd);
         }
-        strcat(request_message, buf);
     }
 
-    if(strlen(request_message) == 0)
+    if (strlen(request_message) == 0)
     {
         close(newsockfd);
         free(request_message);
@@ -375,31 +444,37 @@ void *dataFromClient(void *sockid)
         printf("Request_message: %s\n", request_message);
         printf("req->method: %s\n", req->method);
         printf("req->host: %s\n", req->host);
-        printf("req->buf: %s\n", req->buf);
-        fprintf(stderr, "Error in request message. Only HTTP GET with headers is allowed!\n");
-        exit(0);
+        // fprintf(stderr, "Error in request message. Only HTTP GET/CONNECT with headers is allowed!\n");
     }
-
     if (req->port == NULL)
         req->port = strdup("80");
 
+    if (strcmp(req->method, "GET") == 0)
+    {
+        printf("Request_message: %s\n", request_message);
+        printf("req->method: %s\n", req->method);
+        printf("req->host: %s\n", req->host);
+        // Example DNS lookup and cache logic (replace with actual logic)
+        printf("HANDLING GET REQUEST\n");
+        char *url_path = extract_url_path(request_message);
+        char *temp = perform_dns_lookup(url_path);
 
-    char *url_path = extract_url_path(request_message);
-    char *temp = perform_dns_lookup(url_path);
+        printf("URL: %s\n", url_path);
+        printf("TEMP: %s\n", temp);
+        int isBlocked = 0;
+        if (strcmp(url_path, temp) == 0)
+        {
+            printf("URL and TEMP are same\n");
+        }
+        else
+        {
+            isBlocked = 1;
+            printf("URL and TEMP are different\n");
+        }
 
-    printf("URL: %s\n", url_path);
-    printf("TEMP: %s\n", temp);
-    int isBlocked = 0;
-    if(strcmp(url_path, temp) == 0){
-        printf("URL and TEMP are same\n");
-    }else{
-        isBlocked = 1;
-        printf("URL and TEMP are different\n");
-    }
+        // till here extra
 
-    //till here extra
-
-    cache_element *cached_response = find(temp);
+        cache_element *cached_response = find(temp);
 
     if (cached_response != NULL)
     {
@@ -421,10 +496,14 @@ void *dataFromClient(void *sockid)
 
 
 
-        ParsedRequest_destroy(req);
-        close(iServerfd);
+            ParsedRequest_destroy(req);
+            close(iServerfd);
+        }
     }
-
+    else if (strcmp(req->method, "CONNECT") == 0)
+    {
+        handleConnectRequest(newsockfd, req);
+    }
     close(newsockfd);
     free(request_message);
 
