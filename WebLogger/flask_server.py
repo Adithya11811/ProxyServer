@@ -1,12 +1,14 @@
-# flask_server.py
-from flask import Flask, request, render_template_string
+import os
+from flask import Flask, request, render_template,jsonify
 from flask_socketio import SocketIO, emit
- 
 import datetime 
+
 app = Flask(__name__)
 socketio = SocketIO(app)
 
 logs = []
+IP_FILE_PATH = os.path.join(os.path.dirname(__file__), '..', 'ProxyServer', 'ip.txt')
+
 
 @app.route('/log', methods=['POST'])
 def log():
@@ -36,6 +38,7 @@ def parse_log(raw_log):
         'location': '',
         'x_cache': ''
     }
+    total_seconds=0
     for line in lines[1:]:
         if line.startswith('URL:'):
             log_entry['url'] = line.split(': ', 1)[1]
@@ -43,20 +46,33 @@ def parse_log(raw_log):
             log_entry['data'] = line.split(': ', 1)[1]
         elif line.startswith('Length:'):
             log_entry['length'] = line.split(': ', 1)[1]
+        elif line.startswith('Date:'):
+            log_entry['date'] = line.split(': ', 1)[1]    
+            time_str=log_entry['date']
+            time_part = time_str.split(' ')
+            time_t=time_part[4]
+            hours, minutes, seconds = map(int, time_t.split(':'))
+            print("hours:",type(hours))
+            print("minutes:",type(minutes))
+            print("seconds:",type(seconds))
+            total_seconds += hours * 3600 + minutes * 60 + seconds            
+           
         elif line.startswith('LRU Time Track:'):
-            time_str = line.split(': ', 1)[1]
-            try:
-                # Convert string timestamp to float
-                time_float = float(time_str)
-                dt_object = datetime.datetime.fromtimestamp(time_float)
-                formatted_time = dt_object.strftime("%Y-%m-%d %H:%M:%S")
-                log_entry['lru_time_track'] = formatted_time
-            except ValueError:
-                log_entry['lru_time_track'] = 'Error!'
+            log_entry['lru_time_track'] = line.split(': ', 1)[1]  
+            # time_str = line.split(': ', 1)[1]
+            # time_str=int(time_str)
+            # response_time=time_str-total_seconds
+            # log_entry['lru_time_track'] = response_time
+            # try:
+            #     time_float = float(time_str)
+            #     dt_object = datetime.datetime.fromtimestamp(time_float)
+            #     formatted_time = dt_object.strftime("%Y-%m-%d %H:%M:%S")
+            #     log_entry['lru_time_track'] = formatted_time
+            # except ValueError:
+            #     log_entry['lru_time_track'] = 'Error!'
         elif line.startswith('Server:'):
             log_entry['server'] = line.split(': ', 1)[1]
-        elif line.startswith('Date:'):
-            log_entry['date'] = line.split(': ', 1)[1]
+        
         elif line.startswith('Content-Type:'):
             log_entry['content_type'] = line.split(': ', 1)[1]
         elif line.startswith('Content-Length:'):
@@ -67,96 +83,20 @@ def parse_log(raw_log):
 
 @app.route('/')
 def index():
-    return render_template_string('''
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Cache Logs</title>
-    <style>
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        th, td {
-            padding: 8px;
-            text-align: left;
-            border: 1px solid #ddd;
-        }
-        th {
-            background-color: #f2f2f2;
-        }
-    </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
-    <script type="text/javascript">
-        document.addEventListener("DOMContentLoaded", function() {
-            var socket = io.connect('http://' + document.domain + ':' + location.port);
+    return render_template('weblogger.html', logs=logs)
 
-            socket.on('update_log', function(log) {
-                var table = document.getElementById("logTable");
-                var row = table.insertRow(-1);
-
-                var headerCell = row.insertCell(0);
-                var urlCell = row.insertCell(1);
-                var dataCell = row.insertCell(2);
-                var lengthCell = row.insertCell(3);
-                var lruTimeTrackCell = row.insertCell(4);
-                var serverCell = row.insertCell(5);
-                var dateCell = row.insertCell(6);
-                var contentTypeCell = row.insertCell(7);
-                var contentLengthCell = row.insertCell(8);
-                var locationCell = row.insertCell(9);
-                
-
-                headerCell.innerHTML = log.header;
-                urlCell.innerHTML = log.url;
-                dataCell.innerHTML = log.data;
-                lengthCell.innerHTML = log.length;
-                lruTimeTrackCell.innerHTML = log.lru_time_track;
-                serverCell.innerHTML = log.server;
-                dateCell.innerHTML = log.date;
-                contentTypeCell.innerHTML = log.content_type;
-                contentLengthCell.innerHTML = log.content_length;
-                locationCell.innerHTML = log.location;
-                
-            });
-        });
-    </script>
-</head>
-<body>
-    <h1>Cache Logs</h1>
-    <table id="logTable">
-        <tr>
-            <th>Header</th>
-            <th>URL</th>
-            <th>Data</th>
-            <th>Length</th>
-            <th>LRU Time Track</th>
-            <th>Server</th>
-            <th>Date</th>
-            <th>Content-Type</th>
-            <th>Content-Length</th>
-            <th>Location</th>
-
-        </tr>
-        {% for log in logs %}
-        <tr>
-            <td>{{ log.header }}</td>
-            <td>{{ log.url }}</td>
-            <td>{{ log.data }}</td>
-            <td>{{ log.length }}</td>
-            <td>{{ log.lru_time_track }}</td>
-            <td>{{ log.server }}</td>
-            <td>{{ log.date }}</td>
-            <td>{{ log.content_type }}</td>
-            <td>{{ log.content_length }}</td>
-            <td>{{ log.location }}</td>
-          
-        </tr>
-        {% endfor %}
-    </table>
-</body>
-</html>
-    ''', logs=logs)
+@app.route('/block', methods=['GET', 'POST'])
+def block_site():
+    if request.method == 'POST':
+        ip_address = request.form.get('ip')+','
+        try:
+            with open(IP_FILE_PATH, 'a') as f:
+                f.write(f"{ip_address}\n")
+            socketio.emit('block_ip', {'ip': ip_address})
+            return jsonify({"message": f"IP {ip_address} has been blocked successfully!"})
+        except Exception as e:
+            return jsonify({"error": f"An error occurred while blocking the IP: {e}"})
+    return render_template('blockip.html')
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)

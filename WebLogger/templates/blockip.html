@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Block IP</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='blockip.css') }}">
+    <script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body>
+    <h1>Block IP</h1>
+    <div class="formdiv">
+        <div class="formcontainer">
+            <form id="blockIpForm">
+                <label for="ip">Enter IP address to block:</label>
+                <input type="text" id="ip" name="ip" placeholder="Enter IP address" required>
+                <button type="submit">Block IP</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        var socket = io();
+        socket.on('block_ip', function(data) {
+            console.log('Blocked IP:', data.ip);
+        });
+
+        document.getElementById('blockIpForm').addEventListener('submit', function(event) {
+            event.preventDefault(); 
+            var ip = document.getElementById('ip').value;
+
+            fetch('/block', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({ 'ip': ip })
+            })
+            .then(response => response.json())  
+            .then(data => {
+                if (data.message) {
+                    alert(data.message);  
+                }
+                if (data.error) {
+                    alert(data.error); 
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An unexpected error occurred!');
+            });
+        });
+    </script>
+</body>
+</html>

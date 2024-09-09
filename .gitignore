@@ -1,5 +1,4 @@
 .vscode/
 WebLogger/__pycache__/
 WebLogger/venv/
-
 *.o*

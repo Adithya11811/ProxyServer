@@ -146,7 +146,8 @@ void writeToClient(int Clientfd, int Serverfd, char *url)
 }
 
 const char *blocked_ips[] = {
-    "64:ff9b::14cf:4952", // github.com
+    "64:ff9b::14cf:4952", 
+    "20.207.73.82",// github.com
     NULL // End of list marker
 };
 
