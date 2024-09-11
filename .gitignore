@@ -1,4 +1,6 @@
 .vscode/
 WebLogger/__pycache__/
 WebLogger/venv/
+
+ProxyServer/blocked_ips.txt
 *.o*

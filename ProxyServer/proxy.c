@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-// #include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -10,13 +9,13 @@
 #include <pthread.h>
 #include <sys/wait.h>
 #include <netdb.h>
-
+#include <sys/stat.h>
 #include "hashCache.h"
 #include "proxy_parse.h"
 
 #define REDIRECT_IP "/https://guthib.com/"
 #define GOOGLE_REDIRECT "HTTP/1.1 302 Found\r\nLocation: https://guthib.com/\r\n\r\n"
-
+#define BLOCKED_IP_FILE "blocked_ips.txt"
 
 char *convert_Request_to_string(struct ParsedRequest *req)
 {
@@ -145,14 +144,63 @@ void writeToClient(int Clientfd, int Serverfd, char *url)
     free(server_response_data);
 }
 
-const char *blocked_ips[] = {
-    "64:ff9b::14cf:4952", 
-    "20.207.73.82",// github.com
-    NULL // End of list marker
-};
+int file_exists(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file) {
+        fclose(file);
+        return 1;  // File exists
+    }
+    return 0;  // File doesn't exist
+}
+
+// Function to add GitHub's IPs to the file if not present
+void add_github_ips_to_file(FILE *file) {
+    const char *github_ipv4 = "20.207.73.82";
+    const char *github_ipv6 = "64:ff9b::14cf:4952";
+    fprintf(file, "%s\n", github_ipv4);
+    fprintf(file, "%s\n", github_ipv6);
+    fflush(file);
+    printf("Added GitHub's IPv4 and IPv6 addresses to the file.\n");
+}
+
+// Function to read blocked IPs from file
+void read_blocked_ips(char blocked_ips[][50], int *ip_count) {
+    FILE *file = fopen(BLOCKED_IP_FILE, "r");
+    if (!file) {
+        perror("Error opening blocked IPs file");
+        return;
+    }
+
+    char line[50];
+    while (fgets(line, sizeof(line), file)) {
+        line[strcspn(line, "\n")] = '\0';  // Remove newline character
+        strcpy(blocked_ips[*ip_count], line);
+        (*ip_count)++;
+    }
+
+    fclose(file);
+}
 
 int is_ip_blocked(const char *ip) {
-    for (int i = 0; blocked_ips[i] != NULL; i++) {
+    char blocked_ips[100][50];  // Store up to 100 IPs
+    int ip_count = 0;
+
+    // Check if blocked IP file exists, otherwise create it
+    if (!file_exists(BLOCKED_IP_FILE)) {
+        printf("Blocked IP file not found. Creating %s and adding GitHub's IPs...\n", BLOCKED_IP_FILE);
+        FILE *file = fopen(BLOCKED_IP_FILE, "w");
+        if (!file) {
+            perror("Error creating blocked IP file");
+            return EXIT_FAILURE;
+        }
+        add_github_ips_to_file(file);
+        fclose(file);
+    }
+
+    // Now, read the blocked IPs into the array
+    read_blocked_ips(blocked_ips, &ip_count);
+
+    for (int i = 0; i < ip_count; i++) {
         if (strcmp(blocked_ips[i], ip) == 0) {
             return 1; // IP is blocked
         }
@@ -362,10 +410,10 @@ void *dataFromClient(void *sockid)
         char *browser_req = convert_Request_to_string(req);
         int iServerfd = createServerSocket(req->host, req->port);
         if(isBlocked){
-            printf("Blocked domain: %s\n", temp);
+            printf("Blocked domain: %s\n", url_path);
             writeToSocket(GOOGLE_REDIRECT, newsockfd, strlen(GOOGLE_REDIRECT));
             // writeToClient(newsockfd, iServerfd, request_message);
-            printf("Redirected to Google.com\n");
+            printf("Redirected to %s\n", REDIRECT_IP);
         }else{
             writeToSocket(browser_req, iServerfd, strlen(browser_req));
             writeToClient(newsockfd, iServerfd, request_message);
