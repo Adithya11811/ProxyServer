@@ -1,0 +1,115 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f2f2f2;
+}
+h1 {
+    text-align: center;
+    padding: 20px;
+    background-color: #4a4a4a;
+    color: white;
+    margin: 0;
+}
+.log-container {
+    width: 80%;
+    margin: 20px auto;
+}
+.log-entry {
+background-color: #fff;
+border-radius: 5px;
+box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+margin-bottom: 20px;
+padding: 15px;
+display: flex;
+justify-content: space-between;
+align-items: center;
+position: relative; 
+padding-left: 50px; 
+}
+
+.badge {
+font-size: 26px;
+background-color: #545353;;
+color: white;
+border-radius: 10%;
+width: 40px;
+height: 40px;
+display: flex;
+align-items: center;
+justify-content: center;
+position: absolute;
+top: -10px; 
+left: -10px; 
+}
+
+.log-entry strong {
+    font-weight: bold;
+}
+
+
+.detbox {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #f3f3f3;
+    padding: 10px;
+    gap: 6px;
+    border-radius: 10px;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 10px;
+    width: 100%;
+    box-sizing: border-box; 
+}
+
+.data {
+    width: 100%; 
+    overflow: hidden;
+    text-overflow: ellipsis; 
+    white-space: nowrap;
+}
+
+.details {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+}
+
+.details div {
+    margin-right: 20px;
+    font-size: 14px;
+}
+
+
+button {
+    border: 0px solid #454444;
+    background-color: #545353;
+    border-radius: 0.5em;
+    padding: 0.5em;
+    transition: all ease-in-out 0.2s;
+    font-size: 16px;
+   }
+   
+   button span {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    font-weight: 600;
+   }
+   
+   button:hover {
+    background-color: rgb(29, 29, 29);
+   }
+   
+
+.btncontainer{
+    height: 70px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+
+}

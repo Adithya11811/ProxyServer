@@ -243,7 +243,17 @@ int add_cache_element(char *data, int size, char *url)
         return 0;
     }
 
-    element->lru_time_track = time(NULL);
+    //element->lru_time_track = time(NULL);
+    time_t t = time(NULL);
+    struct tm *gmt;
+    gmt = gmtime(&t);
+    int hours, minutes, seconds;
+    int total_seconds;
+    hours = gmt->tm_hour;
+    minutes = gmt->tm_min;
+    seconds = gmt->tm_sec;
+    total_seconds = hours * 3600 + minutes * 60 + seconds;
+    element->lru_time_track = total_seconds % 1000;
     HASH_ADD_STR(cache, url, element);
     element->len = size;
     cache_size += element_size;
