@@ -90,7 +90,6 @@ void writeToSocket(const char *buffer, int sockfd, int buffer_length) {
     totalsent += senteach;
   }
 }
-
 void writeToClient(int Clientfd, int Serverfd, char *url) {
   printf("WRITE TO CLIENT\n");
 
@@ -341,7 +340,6 @@ void handleConnectRequest(int client_sock, struct ParsedRequest *req) {
 
   // Close both client and server sockets
   close(server_sock);
-  close(client_sock);
 }
 void *dataFromClient(void *sockid) {
   printf("DATA FROM CLIENT\n");
@@ -383,7 +381,7 @@ void *dataFromClient(void *sockid) {
           exit(1);
         }
         request_message = new_request_message;
-        printf("%s", request_message);
+        free(new_request_message);
       }
 
       // Safely append received data
@@ -400,11 +398,11 @@ void *dataFromClient(void *sockid) {
   struct ParsedRequest *req = ParsedRequest_create();
 
   if (ParsedRequest_parse(req, request_message, strlen(request_message)) < 0) {
-    printf("Request_message: %s\n", request_message);
-    printf("req->method: %s\n", req->method);
-    printf("req->host: %s\n", req->host);
-    // fprintf(stderr, "Error in request message. Only HTTP GET/CONNECT with
-    // headers is allowed!\n");
+    // printf("Request_message: %s\n", request_message);
+    // printf("req->method: %s\n", req->method);
+    // printf("req->host: %s\n", req->host);
+    fprintf(stderr, "Error in request message. Only HTTP GET/CONNECT with "
+                    "headers is allowed!\n");
   }
   if (req->port == NULL)
     req->port = strdup("80");
