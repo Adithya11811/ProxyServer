@@ -7,7 +7,7 @@ app = Flask(__name__)
 socketio = SocketIO(app)
 
 logs = []
-IP_FILE_PATH = os.path.join(os.path.dirname(__file__), '..', 'ProxyServer', 'ip.txt')
+IP_FILE_PATH = os.path.join(os.path.dirname(__file__), '..', 'ProxyServer', 'blocked_ips.txt')
 
 
 @app.route('/log', methods=['POST'])
