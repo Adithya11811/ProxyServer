@@ -13,10 +13,12 @@ int createServerSocket(const char *pcAddress, const char *pcPort) {
   memset(&ahints, 0, sizeof(ahints));
   ahints.ai_family = AF_UNSPEC;
   ahints.ai_socktype = SOCK_STREAM;
+
   if (getaddrinfo(pcAddress, pcPort, &ahints, &paRes) != 0) {
     fprintf(stderr, "Error in server address format!\n");
     exit(1);
   }
+
   if ((iSockfd = socket(paRes->ai_family, paRes->ai_socktype,
                         paRes->ai_protocol)) < 0) {
     fprintf(stderr, "Error in creating socket to server!\n");

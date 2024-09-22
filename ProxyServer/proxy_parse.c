@@ -9,7 +9,7 @@
 #define MAX_REQ_LEN 65535
 #define MIN_REQ_LEN 4
 
-// static const char *root_abs_path = "/";
+static const char *root_abs_path = "/";
 
 /* private function declartions */
 int ParsedRequest_printRequestLine(struct ParsedRequest *pr, char *buf,
@@ -366,7 +366,7 @@ int ParsedRequest_parse(struct ParsedRequest *parse, const char *buf,
       return -1;
     }
 
-    parse->version = strtok_r(NULL, "\r\n", &saveptr);
+    parse->version = full_addr + strlen(full_addr) + 1;
     if (parse->version == NULL) {
       debug("invalid request line, missing version\n");
       free(tmp_buf);
@@ -383,9 +383,16 @@ int ParsedRequest_parse(struct ParsedRequest *parse, const char *buf,
     }
 
     parse->protocol = strtok_r(full_addr, "://", &saveptr);
+    if (parse->protocol == NULL) {
+      debug("invalid request line, missing host\n");
+      free(tmp_buf);
+      free(parse->buf);
+      parse->buf = NULL;
+      return -1;
+    }
+    const char *rem = full_addr + strlen(parse->protocol) + strlen("://");
+    size_t abs_uri_len = strlen(rem);
     parse->host = strtok_r(NULL, "/", &saveptr);
-    parse->path = strtok_r(NULL, " ", &saveptr);
-
     if (parse->host == NULL) {
       debug("invalid request line, missing host\n");
       free(tmp_buf);
@@ -394,9 +401,61 @@ int ParsedRequest_parse(struct ParsedRequest *parse, const char *buf,
       return -1;
     }
 
-    if (parse->path == NULL) {
-      // If no path is specified, default to "/"
-      parse->path = strdup("/");
+    if (strlen(parse->host) == abs_uri_len) {
+      debug("invalid request line, missing absolute path\n");
+      free(tmp_buf);
+      free(parse->buf);
+      parse->buf = NULL;
+      return -1;
+    }
+    parse->path = strtok_r(NULL, " ", &saveptr);
+
+    if (parse->path == NULL) { // replace empty abs_path with "/"
+      int rlen = strlen(root_abs_path);
+      parse->path = (char *)malloc(rlen + 1);
+      strncpy(parse->path, root_abs_path, rlen + 1);
+    } else if (strncmp(parse->path, root_abs_path, strlen(root_abs_path)) ==
+               0) {
+      debug("invalid request line, path cannot begin "
+            "with two slash characters\n");
+      free(tmp_buf);
+      free(parse->buf);
+      parse->buf = NULL;
+      parse->path = NULL;
+      return -1;
+    } else {
+      // copy parse->path, prefix with a slash
+      char *tmp_path = parse->path;
+      int rlen = strlen(root_abs_path);
+      int plen = strlen(parse->path);
+      parse->path = (char *)malloc(rlen + plen + 1);
+      strncpy(parse->path, root_abs_path, rlen);
+      strncpy(parse->path + rlen, tmp_path, plen + 1);
+    }
+    parse->host = strtok_r(parse->host, ":", &saveptr);
+    parse->port = strtok_r(NULL, "/", &saveptr);
+
+    if (parse->host == NULL) {
+      debug("invalid request line, missing host\n");
+      free(tmp_buf);
+      free(parse->buf);
+      free(parse->path);
+      parse->buf = NULL;
+      parse->path = NULL;
+      return -1;
+    }
+
+    if (parse->port != NULL) {
+      int port = strtol(parse->port, (char **)NULL, 10);
+      if (port == 0 && errno == EINVAL) {
+        debug("invalid request line, bad port: %s\n", parse->port);
+        free(tmp_buf);
+        free(parse->buf);
+        free(parse->path);
+        parse->buf = NULL;
+        parse->path = NULL;
+        return -1;
+      }
     }
   } else if (strcmp(parse->method, "CONNECT") == 0) {
     // Handle CONNECT method request

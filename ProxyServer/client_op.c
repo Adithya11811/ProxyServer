@@ -92,6 +92,7 @@ void handleConnectRequest(int client_sock, struct ParsedRequest *req) {
   // Close both client and server sockets
   close(server_sock);
 }
+
 void *dataFromClient(void *sockid) {
   printf("DATA FROM CLIENT\n");
 
