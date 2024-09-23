@@ -7,76 +7,75 @@
     <script type="text/javascript">
         document.addEventListener("DOMContentLoaded", function() {
             var socket = io.connect('http://' + document.domain + ':' + location.port);
+            var container = document.querySelector('.log-container');
 
-            socket.on('update_log', function(log) {
-                var container = document.querySelector('.log-container');
-
+            function addLogEntry(log, index) {
                 var logEntry = document.createElement('div');
                 logEntry.classList.add('log-entry');
 
                 var badgeDiv = document.createElement('div');
                 var badge = document.createElement('span');
                 badge.classList.add('badge');
-
-                badge.innerHTML = "1";
+                badge.innerHTML = index + 1;
                 badgeDiv.appendChild(badge);
 
                 var dataDiv = document.createElement('div');
                 dataDiv.classList.add('data');
-
                 dataDiv.innerHTML = `
                 <div class="detbox">
                     <div class="details"> 
                         <div> <span><strong>URL:</strong> ${log.url}</span> </div>
-                        <div>  <span><strong>Header:</strong> ${log.header}</span> </div>
-                        <div>  <span><strong>Data:</strong> ${log.data}</span> </div>
-                        <div>  <span><strong>Length:</strong> ${log.length}</span></div>
-                        <div><span><strong>Response-time:</strong> ${log.lru_time_track}ms</span> </div>
-                          <div> <span><strong>Server:</strong> ${log.server}</span> </div>
+                        <div> <span><strong>Header:</strong> ${log.header}</span> </div>
+                        <div> <span><strong>Data:</strong> ${log.data}</span> </div>
+                        <div> <span><strong>Length:</strong> ${log.length}</span></div>
+                        <div> <span><strong>Response-time:</strong> ${log.lru_time_track}ms</span> </div>
+                        <div> <span><strong>Server:</strong> ${log.server}</span> </div>
                     </div>
                     <div class="details"> 
-
-                        
                         <div> <span><strong>Date:</strong> ${log.date}</span> </div>
-                      
                         <div> <span><strong>Content-Type:</strong> ${log.content_type}</span></div>
-                        <div>  <span><strong>Location:</strong> ${log.location}</span></div>
+                        <div> <span><strong>Location:</strong> ${log.location}</span></div>
                         <div> <span><strong>Content-Length:</strong> ${log.content_length}</span></div>
-
                     </div>
-
-                    
                 </div>    
                 `;
 
                 logEntry.appendChild(badgeDiv);
                 logEntry.appendChild(dataDiv);
+                container.appendChild(logEntry);
+            }
 
-                container.insertBefore(logEntry, container.firstChild);
+            function logsupdatekaro() {
+                container.innerHTML = '';
+                storedLogs.forEach((log, index) => addLogEntry(log, index));
+            }
 
-                var allBadges = container.querySelectorAll('.badge');
-                allBadges.forEach((badge, index) => {
-                    badge.innerHTML = index + 1; 
-                });
+            var storedLogs = JSON.parse(sessionStorage.getItem('weblogger_logs') || '[]');
+            logsupdatekaro();
+
+            socket.on('update_log', function(log) {
+                storedLogs.unshift(log);
+                sessionStorage.setItem('weblogger_logs', JSON.stringify(storedLogs));
+                logsupdatekaro();
             });
         });
     </script>
 </head>
 <body> 
-        <h1>WEBLOGGER</h1>
-        <div class="btncontainer">
-            <a href="{{ url_for('block_site') }}">
-                <button>
-                    <span>
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
-                            <path fill="none" d="M0 0h24v24H0z"></path>
-                            <path fill="currentColor" d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2z"></path>
-                        </svg> 
-                        Block Site
-                    </span>
-                </button>
-            </a>
-        </div>
+    <h1>WEBLOGGER</h1>
+    <div class="btncontainer">
+        <a href="{{ url_for('block_site') }}">
+            <button>
+                <span>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+                        <path fill="none" d="M0 0h24v24H0z"></path>
+                        <path fill="currentColor" d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2z"></path>
+                    </svg> 
+                    Block Site
+                </span>
+            </button>
+        </a>
+    </div>
     <div class="log-container"></div>
 </body>
 </html>
