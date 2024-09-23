@@ -85,10 +85,14 @@ def parse_log(raw_log):
 def index():
     return render_template('weblogger.html', logs=logs)
 
+@app.route('/get_logs')
+def get_logs():
+    return jsonify(logs)
+
 @app.route('/block', methods=['GET', 'POST'])
 def block_site():
     if request.method == 'POST':
-        ip_address = request.form.get('ip')+','
+        ip_address = request.form.get('ip')
         try:
             with open(IP_FILE_PATH, 'a') as f:
                 f.write(f"{ip_address}\n")
