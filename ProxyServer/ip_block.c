@@ -10,14 +10,14 @@ int file_exists(const char *filename) {
   return 0; // File doesn't exist
 }
 // Function to add GitHub's IPs to the file if not present
-void add_github_ips_to_file(FILE *file) {
-  const char *github_ipv4 = "20.207.73.82";
-  const char *github_ipv6 = "64:ff9b::14cf:4952";
-  fprintf(file, "%s\n", github_ipv4);
-  fprintf(file, "%s\n", github_ipv6);
-  fflush(file);
-  printf("Added GitHub's IPv4 and IPv6 addresses to the file.\n");
-}
+// void add_github_ips_to_file(FILE *file) {
+//   const char *github_ipv4 = "20.207.73.82";
+//   const char *github_ipv6 = "64:ff9b::14cf:4952";
+//   fprintf(file, "%s\n", github_ipv4);
+//   fprintf(file, "%s\n", github_ipv6);
+//   fflush(file);
+//   printf("Added GitHub's IPv4 and IPv6 addresses to the file.\n");
+// }
 
 // Function to read blocked IPs from file
 void read_blocked_ips(char blocked_ips[][50], int *ip_count) {
@@ -44,14 +44,14 @@ int is_ip_blocked(const char *ip) {
   // Check if blocked IP file exists, otherwise create it
   if (!file_exists(BLOCKED_IP_FILE)) {
     printf(
-        "Blocked IP file not found. Creating %s and adding GitHub's IPs...\n",
+        "Blocked IP file not found. Creating %s...\n",
         BLOCKED_IP_FILE);
     FILE *file = fopen(BLOCKED_IP_FILE, "w");
     if (!file) {
       perror("Error creating blocked IP file");
       return EXIT_FAILURE;
     }
-    add_github_ips_to_file(file);
+    //add_github_ips_to_file(file);
     fclose(file);
   }
 
