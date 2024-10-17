@@ -1,7 +1,6 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
-// Define constants using #define
 #define REDIRECT_IP "/https://guthib.com/"
 
 #define GOOGLE_REDIRECT                                                        \
@@ -12,7 +11,6 @@
 #define MAX_SIZE 1048576 // 1MB max size
 
 #define MAX_ELEMENT_SIZE 102400 // 100KB max element size
-// Define typed constants using const
 const int INITIAL_BUF_SIZE = 5000;
 const int MAX_IP_COUNT = 100;
 

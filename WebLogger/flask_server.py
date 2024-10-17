@@ -1,4 +1,5 @@
 import os
+import socket
 from flask import Flask, request, render_template,jsonify
 from flask_socketio import SocketIO, emit
 import datetime 
@@ -81,6 +82,13 @@ def parse_log(raw_log):
             log_entry['location'] = line.split(': ', 1)[1]
     return log_entry
 
+def get_ip_from_domain(dm):
+    try:
+        ip_address = socket.gethostbyname(dm)
+        return ip_address
+    except socket.gaierror:
+        return "error"
+
 @app.route('/')
 def index():
     return render_template('weblogger.html', logs=logs)
@@ -92,7 +100,10 @@ def get_logs():
 @app.route('/block', methods=['GET', 'POST'])
 def block_site():
     if request.method == 'POST':
-        ip_address = request.form.get('ip')
+        domain_name = request.form.get('ip')
+        ip_address=get_ip_from_domain(domain_name)
+        if ip_address=="error":
+            return jsonify({"error": f"An error occurred while blocking the IP"})
         try:
             with open(IP_FILE_PATH, 'a') as f:
                 f.write(f"{ip_address}\n")
